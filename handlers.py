@@ -227,18 +227,65 @@ async def chart(message: Message):
         await message.reply("Пожалуйста, укажите тикер актива после команды /chart")
 
 
+async def parse_notification_request(text: str):
+    parts = text.split()
+    if len(parts) != 3:
+        return None, None, None
+    ticker, notification_type, threshold = parts
+    if notification_type == "процент":
+        try:
+            threshold = float(threshold)
+            return ticker, "percent", threshold
+        except ValueError:
+            return None, None, None
+    elif notification_type == "цена":
+        try:
+            threshold = float(threshold)
+            return ticker, "price", threshold
+        except ValueError:
+            return None, None, None
+    return None, None, None
+
+
 @router.message(Command("subscribe"))
 async def subscribe(message: Message):
     # Реализация логики подписки на уведомления об изменении цены
-    ticker = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else None
-    if ticker:
-        new_subscription = Subscription(user_id=message.from_user.id, ticker=ticker)
+    ticker, notification_type, threshold = await parse_notification_request(message.text)
+    if ticker and notification_type and threshold:
+        new_subscription = Subscription(user_id=message.from_user.id, ticker=ticker, type=notification_type,
+                                        threshold=threshold)
         db.add(new_subscription)
         db.commit()
         await message.reply(f"Подписка на уведомления по {ticker} успешно оформлена.")
     else:
-        await message.reply("Пожалуйста, укажите тикер актива после команды /subscribe")
+        await message.reply("Введите тикер актива, тип уведомления (в процентах) и параметры "
+                            "уведомления.\n"
+                            "Пример: `BTC процент 5`")
 
+
+# Хендлер для команды /subscriptions
+@router.message(Command("subscriptions"))
+async def view_subscriptions(message: Message):
+    user_id = message.from_user.id
+    session = SessionLocal()
+
+    # Получаем список подписок пользователя
+    subscriptions = session.query(Subscription).filter_by(user_id=user_id).all()
+
+    if not subscriptions:
+        await message.answer("У вас нет активных подписок.")
+    else:
+        response = "Ваши активные подписки:\n"
+        for subscription in subscriptions:
+            if subscription.alert_type == 'percentage':
+                response += f"Актив: {subscription.ticker}, Уведомление при изменении на {subscription.alert_value}%\n"
+            elif subscription.alert_type == 'price_level':
+                response += f"Актив: {subscription.ticker}, Уведомление при достижении цены {subscription.alert_value}\n"
+        response += "\nЧтобы удалить подписку, введите /unsubscribe <тикер>."
+
+        await message.answer(response)
+
+    session.close()
 
 async def add_to_favorites(user_id, ticker):
     """Добавление актива в избранное."""

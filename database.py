@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, create_engine
+from datetime import datetime
+
+from sqlalchemy import Column, Integer, String, ForeignKey, create_engine, DateTime, Boolean
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 
 DATABASE_URL = "sqlite:///./bot_database.db"  # Укажите путь к вашей базе данных
@@ -35,9 +37,12 @@ class Subscription(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    period = Column(Integer, default=60)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    active = Column(Boolean, default=True)
     ticker = Column(String, index=True)
-    alert_type = Column(String, default="percentage")  # Например, "percentage" или "price_level"
-    alert_value = Column(Integer)  # Процент изменения или уровень цены для уведомления
+    type = Column(String, default="percentage")  # Например, "percentage" или "price_level"
+    threshold = Column(Integer)  # Процент изменения или уровень цены для уведомления
 
     user = relationship("User", back_populates="subscriptions")
 
