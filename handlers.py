@@ -1,10 +1,12 @@
 import types
+from sqlite3 import IntegrityError
+
 import requests
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message, InputFile, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from api import get_asset_info, get_chart_data
+from api import get_asset_info, get_chart_data, get_unknown_asset_info
 from database import SessionLocal, User, Favorite, Subscription
 import matplotlib.pyplot as plt
 import io
@@ -48,6 +50,7 @@ async def send_welcome(message: Message):
 @router.message(lambda message: message.text == "Просмотр активов")
 async def view_assets(message: Message):
     await message.answer("Выберите категорию активов:", reply_markup=category_keyboard())
+
 
 @router.callback_query(lambda c: c.data.startswith("category"))
 async def process_category_callback(callback_query: CallbackQuery):
@@ -106,7 +109,6 @@ async def process_category_callback(callback_query: CallbackQuery):
 
             message_text += "\n"
 
-
         await callback_query.message.answer(message_text)
         await callback_query.answer()  # Подтверждение callback-запроса
 
@@ -116,8 +118,11 @@ async def process_category_callback(callback_query: CallbackQuery):
 
 
 @router.message(lambda message: message.text == "Избранное")
-async def view_favorites(message: Message):
-    await message.answer("Ваши избранные активы: ...")  # Добавьте логику получения избранных активов
+async def list_favorites(message: Message):
+    """Отправка пользователю списка избранных активов."""
+    user_id = message.from_user.id
+    response = await get_favorites(user_id)
+    await message.answer(response)
 
 
 @router.message(lambda message: message.text == "Настройки")
@@ -199,7 +204,6 @@ async def process_interval_callback(callback_query: CallbackQuery):
         await callback_query.answer()
 
 
-
 @router.message(Command("chart"))
 async def chart(message: Message):
     ticker = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else None
@@ -236,27 +240,77 @@ async def subscribe(message: Message):
         await message.reply("Пожалуйста, укажите тикер актива после команды /subscribe")
 
 
-@router.message(Command("favorites"))
-async def favorites(message: Message):
-    # Реализация логики управления избранными активами
-    user_id = message.from_user.id
-    favorites = db.query(Favorite).filter(Favorite.user_id == user_id).all()
-    if favorites:
-        reply = "Ваши избранные активы:\n" + "\n".join([f.ticker for f in favorites])
+async def add_to_favorites(user_id, ticker):
+    """Добавление актива в избранное."""
+    session = SessionLocal()
+    # Пример использования
+    asset_info = await get_unknown_asset_info(ticker, "1d")
+    if isinstance(asset_info, str):
+        # Обработка ошибки, если актив не найден
+        print(asset_info)
+        session.close()
+        return f"Актив {ticker} не найден."
     else:
-        reply = "У вас нет избранных активов."
-    await message.reply(reply)
+        # Обработка успешного ответа, asset_info содержит тип актива и данные
+        asset_type = asset_info["type"]
+        data = asset_info["data"]
+        print(f"Тип актива: {asset_type}, Данные: {data}")
+        try:
+            favorite = Favorite(user_id=user_id, ticker=ticker)
+            session.add(favorite)
+            session.commit()
+            return f"Актив {ticker} добавлен в избранное."
+        except IntegrityError:
+            session.rollback()
+            return f"Актив {ticker} уже в избранном."
+        finally:
+            session.close()
 
 
-@router.message(Command("settings"))
-async def settings(message: Message):
-    await message.reply(
-        "Настройки:\n"
-        "1. Базовая валюта\n"
-        "2. Часовой пояс\n"
-        "3. Частота уведомлений\n"
-        "Для изменения параметра введите команду /set [параметр] [значение]"
-    )
+async def remove_from_favorites(user_id, ticker):
+    """Удаление актива из избранного."""
+    session = SessionLocal()
+    favorite = session.query(Favorite).filter_by(user_id=user_id, ticker=ticker).first()
+    if favorite:
+        session.delete(favorite)
+        session.commit()
+        message = f"Актив {ticker} удален из избранного."
+    else:
+        message = f"Актив {ticker} не найден в избранном."
+    session.close()
+    return message
+
+
+async def get_favorites(user_id):
+    """Получение списка избранных активов пользователя."""
+    session = SessionLocal()
+    favorites = session.query(Favorite).filter_by(user_id=user_id).all()
+    session.close()
+    if favorites:
+        return "Ваши избранные активы:\n" + "\n".join([f.ticker for f in favorites])
+    return "Ваш список избранных пуст."
+
+
+@router.message(Command("favorite"))
+async def handle_favorite_command(message: Message):
+    """Обработка команды избранного, добавление или удаление актива."""
+    user_id = message.from_user.id
+    command_parts = message.text.split()
+
+    if len(command_parts) < 3:
+        await message.answer("Используйте формат: /favorite <добавить/удалить> <тикер>")
+        return
+
+    action, ticker = command_parts[1], command_parts[2].upper()
+
+    if action == "добавить":
+        response = await add_to_favorites(user_id, ticker)
+    elif action == "удалить":
+        response = await remove_from_favorites(user_id, ticker)
+    else:
+        response = "Неизвестное действие. Используйте 'добавить' или 'удалить'."
+
+    await message.answer(response)
 
 
 @router.message(Command("subscriptions"))

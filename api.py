@@ -1,4 +1,7 @@
+import httpx
 import requests
+from aiogram.client.session import aiohttp
+
 from config import API_BASE_URL
 
 
@@ -28,3 +31,30 @@ def get_chart_data(ticker):
     except requests.RequestException as e:
         print(f"Ошибка при запросе данных для графика: {e}")
         return None
+
+
+# Словарь URL-ов по типу актива
+URLS = {
+    "crypto": "http://bigidulka2.ddns.net:8000/current/crypto/",
+    "stock": "http://bigidulka2.ddns.net:8000/current/stock/",
+    "currency": "http://bigidulka2.ddns.net:8000/current/currency/"
+}
+
+
+async def get_unknown_asset_info(ticker: str, interval: str = "1d"):
+    async with httpx.AsyncClient() as client:
+        for asset_type, base_url in URLS.items():
+            url = f"{base_url}{ticker}?interval={interval}"
+            try:
+                response = await client.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    return {"type": asset_type, "data": data}
+                elif response.status_code == 404:
+                    continue  # Актив не найден для данного типа, попробуем следующий
+            except httpx.HTTPError as e:
+                print(f"Ошибка при запросе к {url}: {e}")
+                continue
+
+    # Если ни один из запросов не успешен
+    return f"Актив {ticker} не найден среди доступных типов: crypto, stock, currency."
