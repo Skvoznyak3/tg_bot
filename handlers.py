@@ -9,7 +9,7 @@ from database import SessionLocal, User, Favorite, Subscription
 import matplotlib.pyplot as plt
 import io
 
-from tg_bot.keyboards import interval_keyboard
+from keyboards import interval_keyboard
 
 router = Router()
 db = SessionLocal()
@@ -115,23 +115,24 @@ async def process_interval_callback(callback_query: CallbackQuery):
         _, asset_type, asset, interval = callback_query.data.split(":")
 
         # Construct the API URL with the selected interval
-        url = f"http://bigidulka2.ddns.net:8000/current/{asset_type}/{asset}?interval={interval}"
+        url = f"https://wondrous-largely-dogfish.ngrok-free.app/current/{asset_type}/{asset}?interval={interval}"
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
 
-        # Parse and display the response
+        # Extract asset information safely
         asset_info = f"**{asset.upper()}** ({interval}):\n"
-        asset_info += f"Price: {data['price']}\n"
-        asset_info += f"Volume: {data['volume']}\n"
-        asset_info += f"Market Cap: {data['market_cap']}\n"
-        asset_info += f"Change: {data['change']}%\n"
+        asset_info += f"Price (Close): {data.get('Close', 'N/A')}\n"
+        asset_info += f"Volume: {data.get('Volume', 'N/A')}\n"
+        asset_info += f"Market Cap: {data.get('info', {}).get('marketCap', 'N/A')}\n"
+        asset_info += f"Change: {data.get('info', {}).get('change', 'N/A')}%\n"
 
         await callback_query.message.answer(asset_info, parse_mode="Markdown")
         await callback_query.answer()  # Acknowledge the callback
     except Exception as e:
         await callback_query.message.answer(f"Error fetching data: {e}")
         await callback_query.answer()
+
 
 
 @router.message(Command("chart"))

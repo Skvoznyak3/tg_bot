@@ -8,7 +8,7 @@ def interval_keyboard(asset_type, asset):
         [
             InlineKeyboardButton(text="1 Hour", callback_data=f"interval:{asset_type}:{asset}:1h"),
             InlineKeyboardButton(text="1 Day", callback_data=f"interval:{asset_type}:{asset}:1d"),
-            InlineKeyboardButton(text="1 Week", callback_data=f"interval:{asset_type}:{asset}:1w")
+            InlineKeyboardButton(text="1 Week", callback_data=f"interval:{asset_type}:{asset}:1wk")
         ]
     ])
     return keyboard
