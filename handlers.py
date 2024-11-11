@@ -1,11 +1,15 @@
-from aiogram import types
-from api import get_assets, get_asset_info
+from aiogram import Router, F
+from aiogram.filters import Command
+from aiogram.types import Message
+from api import get_asset_info, get_assets
 from database import SessionLocal, User
-from aiogram.dispatcher import Dispatcher
 
+router = Router()
 db = SessionLocal()
 
-async def start(message: types.Message):
+
+@router.message(Command("start"))
+async def start(message: Message):
     user_id = message.from_user.id
     user = db.query(User).filter(User.telegram_id == user_id).first()
     if not user:
@@ -14,8 +18,10 @@ async def start(message: types.Message):
         db.commit()
     await message.reply("Добро пожаловать! Используйте /help для списка команд.")
 
-async def info(message: types.Message):
-    ticker = message.get_args()
+
+@router.message(Command("info"))
+async def info(message: Message):
+    ticker = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else None
     if ticker:
         data = await get_asset_info(ticker)
         if data:
@@ -23,17 +29,3 @@ async def info(message: types.Message):
         else:
             reply = "Актив не найден."
         await message.reply(reply)
-
-async def favorites(message: types.Message):
-    user_id = message.from_user.id
-    favs = db.query(Favorite).filter(Favorite.user_id == user_id).all()
-    if favs:
-        favs_list = "\n".join([fav.ticker for fav in favs])
-        await message.reply(f"Ваши избранные активы:\n{favs_list}")
-    else:
-        await message.reply("Список избранных пуст.")
-
-def register_handlers(dp: Dispatcher):
-    dp.register_message_handler(start, commands=["start"])
-    dp.register_message_handler(info, commands=["info"])
-    dp.register_message_handler(favorites, commands=["favorites"])

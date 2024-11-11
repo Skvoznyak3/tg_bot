@@ -1,11 +1,18 @@
-from aiogram import Bot, Dispatcher, executor
+import asyncio
+from aiogram import Bot, Dispatcher
 from config import API_TOKEN
-from handlers import register_handlers
+from handlers import router
 
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
 
-register_handlers(dp)
+async def main():
+    bot = Bot(token=API_TOKEN)
+    dp = Dispatcher()
+
+    # Подключение роутера с обработчиками
+    dp.include_router(router)
+
+    await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
