@@ -12,3 +12,13 @@ def interval_keyboard(asset_type, asset):
         ]
     ])
     return keyboard
+
+
+def category_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Акции", callback_data="category:stocks")],
+        [InlineKeyboardButton(text="Криптовалюты", callback_data="category:cryptocurrencies")],
+        [InlineKeyboardButton(text="Валюты", callback_data="category:currencies")]
+    ])
+    return keyboard
+

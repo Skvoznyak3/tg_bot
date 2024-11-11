@@ -9,7 +9,7 @@ from database import SessionLocal, User, Favorite, Subscription
 import matplotlib.pyplot as plt
 import io
 
-from keyboards import interval_keyboard
+from keyboards import interval_keyboard, category_keyboard
 
 router = Router()
 db = SessionLocal()
@@ -44,10 +44,75 @@ async def send_welcome(message: Message):
     await message.answer(welcome_text, reply_markup=main_menu())
 
 
-# Обработчики для кнопок главного меню
+# Обработчик выбора категории
 @router.message(lambda message: message.text == "Просмотр активов")
 async def view_assets(message: Message):
-    await message.answer("Выберите категорию активов для просмотра: акции, валюты, криптовалюты.")
+    await message.answer("Выберите категорию активов:", reply_markup=category_keyboard())
+
+@router.callback_query(lambda c: c.data.startswith("category"))
+async def process_category_callback(callback_query: CallbackQuery):
+    category = callback_query.data.split(":")[1]
+    base_url = "http://bigidulka2.ddns.net:8000"
+
+    # Определяем конечный URL на основе выбранной категории
+    if category == "stocks":
+        url = f"{base_url}/stocks"
+    elif category == "cryptocurrencies":
+        url = f"{base_url}/cryptocurrencies"
+    elif category == "currencies":
+        url = f"{base_url}/currency_crosses"
+    else:
+        await callback_query.message.answer("Неверная категория.")
+        return
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        assets = response.json()
+
+        # Вывод краткой информации по активам
+        message_text = "Список активов:\n"
+        for asset in assets[:10]:  # ограничим вывод до 10 активов
+            name = asset.get("name", "N/A")
+            if category == "stocks":
+                symbol = asset.get("symbol", "N/A")
+                isin = asset.get("isin", "N/A")
+                currency = asset.get("currency") if "currency" in asset else "Данные отсутствуют"
+
+                message_text += (
+                    f"{name} ({symbol}):\n"
+                    f"ISIN: {isin}\n"
+                    f"Валюта: {currency}\n"
+                )
+            elif category == "cryptocurrencies":
+                symbol = asset.get("symbol", "N/A")
+                currency = asset.get("currency") if "currency" in asset else "Данные отсутствуют"
+
+                message_text += (
+                    f"{name} ({symbol}):\n"
+                    f"Валюта: {currency}\n"
+                )
+            elif category == "currencies":
+                base = asset.get("base")
+                base_name = asset.get("base_name")
+                second = asset.get("second")
+                second_name = asset.get("second_name")
+
+                message_text += (
+                    f"{name}:\n"
+                    f"Основная валюта: {base_name} ({base})\n"
+                    f"Вторая валюта: {second_name} ({second})\n"
+                )
+
+            message_text += "\n"
+
+
+        await callback_query.message.answer(message_text)
+        await callback_query.answer()  # Подтверждение callback-запроса
+
+    except requests.RequestException as e:
+        await callback_query.message.answer(f"Ошибка при получении данных: {e}")
+        await callback_query.answer()
 
 
 @router.message(lambda message: message.text == "Избранное")
@@ -115,7 +180,7 @@ async def process_interval_callback(callback_query: CallbackQuery):
         _, asset_type, asset, interval = callback_query.data.split(":")
 
         # Construct the API URL with the selected interval
-        url = f"https://wondrous-largely-dogfish.ngrok-free.app/current/{asset_type}/{asset}?interval={interval}"
+        url = f"http://bigidulka2.ddns.net:8000/current/{asset_type}/{asset}?interval={interval}"
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
