@@ -1,15 +1,16 @@
-import types
+import io
+from datetime import datetime
+
+import matplotlib.pyplot as plt
+import requests
+
 from sqlite3 import IntegrityError
 
-import requests
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, InputFile, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery
-from aiogram.fsm.context import FSMContext
-from api import get_asset_info, get_chart_data, get_unknown_asset_info
-from database import SessionLocal, User, Favorite, Subscription
-import matplotlib.pyplot as plt
-import io
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery, BufferedInputFile
+from api import get_unknown_asset_info
+from database import SessionLocal, Favorite, Subscription
 
 from keyboards import interval_keyboard, category_keyboard
 
@@ -55,7 +56,7 @@ async def view_assets(message: Message):
 @router.callback_query(lambda c: c.data.startswith("category"))
 async def process_category_callback(callback_query: CallbackQuery):
     category = callback_query.data.split(":")[1]
-    base_url = "http://bigidulka2.ddns.net:8000"
+    base_url = "https://wondrous-largely-dogfish.ngrok-free.app/"
 
     # Определяем конечный URL на основе выбранной категории
     if category == "stocks":
@@ -185,7 +186,7 @@ async def process_interval_callback(callback_query: CallbackQuery):
         _, asset_type, asset, interval = callback_query.data.split(":")
 
         # Construct the API URL with the selected interval
-        url = f"http://bigidulka2.ddns.net:8000/current/{asset_type}/{asset}?interval={interval}"
+        url = f"https://wondrous-largely-dogfish.ngrok-free.app//current/{asset_type}/{asset}?interval={interval}"
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
@@ -204,27 +205,69 @@ async def process_interval_callback(callback_query: CallbackQuery):
         await callback_query.answer()
 
 
-@router.message(Command("chart"))
-async def chart(message: Message):
-    ticker = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else None
-    if ticker:
-        data = await get_chart_data(ticker)
-        if data:
-            plt.figure()
-            plt.plot(data["dates"], data["prices"], label=ticker)
-            plt.xlabel("Дата")
-            plt.ylabel("Цена")
-            plt.title(f"График {ticker}")
-            plt.legend()
-            buf = io.BytesIO()
-            plt.savefig(buf, format="png")
-            buf.seek(0)
-            await message.reply_photo(InputFile(buf, filename="chart.png"))
-            buf.close()
-        else:
-            await message.reply("Не удалось получить данные для графика.")
-    else:
-        await message.reply("Пожалуйста, укажите тикер актива после команды /chart")
+@router.message(Command(commands=["chart"]))
+async def get_chart_period(message: Message):
+    text = message.text.split()
+    if len(text) < 2:
+        await message.answer("Укажите тикер актива. Пример: /chart BTC")
+        return
+
+    asset_type = 'crypto'  # Default to 'crypto', or customize based on user input
+    asset = text[1].upper()
+
+    try:
+
+        # Construct the API URL with the selected interval
+        url = f"https://wondrous-largely-dogfish.ngrok-free.app/historical/{asset_type}/{asset}?interval=1d"
+        response = requests.get(url)
+        response.raise_for_status()
+
+        # Получаем данные за нужный интервал
+        all_data = response.json()
+        data = all_data[-8:-1:]
+
+        dates = [datetime.strptime(entry["Date"], "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d") for entry in data]
+        closes = [entry["Close_BTC-USD"] for entry in data]
+        volumes = [entry["Volume_BTC-USD"] for entry in data]
+
+        # Построение графика
+        fig, ax1 = plt.subplots(figsize=(12, 6))
+
+        # Линия закрытия цен
+        ax1.plot(dates, closes, label="Цена закрытия (USD)", color='blue')
+        ax1.set_xlabel("Дата")
+        ax1.set_ylabel("Цена закрытия (USD)", color='blue')
+        ax1.tick_params(axis='y', labelcolor='blue')
+        ax1.set_xticklabels(dates, rotation=45, ha='right')
+
+        # Столбцы объема
+        ax2 = ax1.twinx()
+        ax2.bar(dates, volumes, color='gray', alpha=0.3, label="Объем")
+        ax2.set_ylabel("Объем", color='gray')
+        ax2.tick_params(axis='y', labelcolor='gray')
+
+        # Заголовок и легенды
+        plt.title(f"График цены и объема {asset}")
+        ax1.legend(loc="upper left")
+        ax2.legend(loc="upper right")
+
+        # Сохранение графика в буфер
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png')
+        buffer.seek(0)
+        plt.close(fig)
+
+        # Отправка графика в чат
+        await message.reply_photo(
+            photo=BufferedInputFile(buffer.read(), filename="chart.png"),
+            caption=f"График цены и объема {asset}"
+        )
+
+        # Закрытие буфера
+        buffer.close()
+
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
 
 
 @router.message(Command("subscribe"))

@@ -1,4 +1,3 @@
-from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
@@ -21,4 +20,3 @@ def category_keyboard():
         [InlineKeyboardButton(text="Валюты", callback_data="category:currencies")]
     ])
     return keyboard
-
