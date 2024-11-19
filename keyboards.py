@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 
 # Function to generate inline keyboard with interval options
@@ -20,3 +20,17 @@ def category_keyboard():
         [InlineKeyboardButton(text="Валюты", callback_data="category:currencies")]
     ])
     return keyboard
+
+
+# Главное меню
+def main_menu():
+    menu = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Просмотр активов")],
+            [KeyboardButton(text="Избранное")],
+            [KeyboardButton(text="Настройки")],
+            [KeyboardButton(text="Помощь")]
+        ],
+        resize_keyboard=True
+    )
+    return menu
