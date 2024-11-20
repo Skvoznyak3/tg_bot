@@ -34,3 +34,11 @@ def main_menu():
         resize_keyboard=True
     )
     return menu
+
+
+def get_settings_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Изменить базовую валюту", callback_data="settings:currency")],
+        [InlineKeyboardButton(text="Изменить часовой пояс", callback_data="settings:timezone")],
+        [InlineKeyboardButton(text="Изменить частоту уведомлений", callback_data="settings:notifications")],
+    ])

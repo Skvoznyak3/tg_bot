@@ -5,7 +5,8 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from sqlalchemy.orm import joinedload
 
 from database.database import SessionLocal, User, Subscription
-from keyboards import main_menu
+from keyboards import main_menu, get_settings_menu
+from utils import format_assets
 
 router = Router()
 db = SessionLocal()
@@ -47,42 +48,7 @@ async def process_category_callback(callback_query: CallbackQuery):
         response.raise_for_status()
         assets = response.json()
 
-        # Вывод краткой информации по активам
-        message_text = "Список активов:\n"
-        for asset in assets[:10]:  # ограничим вывод до 10 активов
-            name = asset.get("name", "N/A")
-            if category == "stocks":
-                symbol = asset.get("symbol", "N/A")
-                isin = asset.get("isin", "N/A")
-                currency = asset.get("currency") if "currency" in asset else "Данные отсутствуют"
-
-                message_text += (
-                    f"{name} ({symbol}):\n"
-                    f"ISIN: {isin}\n"
-                    f"Валюта: {currency}\n"
-                )
-            elif category == "cryptocurrencies":
-                symbol = asset.get("symbol", "N/A")
-                currency = asset.get("currency") if "currency" in asset else "Данные отсутствуют"
-
-                message_text += (
-                    f"{name} ({symbol}):\n"
-                    f"Валюта: {currency}\n"
-                )
-            elif category == "currencies":
-                base = asset.get("base")
-                base_name = asset.get("base_name")
-                second = asset.get("second")
-                second_name = asset.get("second_name")
-
-                message_text += (
-                    f"{name}:\n"
-                    f"Основная валюта: {base_name} ({base})\n"
-                    f"Вторая валюта: {second_name} ({second})\n"
-                )
-
-            message_text += "\n"
-
+        message_text = format_assets(assets, category)
         await callback_query.message.answer(message_text)
         await callback_query.answer()  # Подтверждение callback-запроса
 
@@ -97,12 +63,7 @@ async def settings_command(message: Message):
     """
     Обработчик команды /settings. Показывает меню настроек.
     """
-    settings_menu = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Изменить базовую валюту", callback_data="settings:currency")],
-        [InlineKeyboardButton(text="Изменить часовой пояс", callback_data="settings:timezone")],
-        [InlineKeyboardButton(text="Изменить частоту уведомлений", callback_data="settings:notifications")]
-    ])
-    await message.answer("Выберите параметр для изменения:", reply_markup=settings_menu)
+    await message.answer("Выберите параметр для изменения:", reply_markup=get_settings_menu())
 
 
 @router.callback_query(lambda c: c.data.startswith("settings:currency"))
@@ -234,4 +195,3 @@ async def help_command(message: Message):
         "/settings — Настройки бота\n"
         "/subscriptions — Управление подписками\n"
     )
-
