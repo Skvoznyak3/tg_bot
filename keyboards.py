@@ -28,7 +28,7 @@ def main_menu():
         keyboard=[
             [KeyboardButton(text="Просмотр активов")],
             [KeyboardButton(text="Избранное")],
-            [KeyboardButton(text="Настройки")],
+            [KeyboardButton(text="Настройки", callback_data="settings")],
             [KeyboardButton(text="Помощь")]
         ],
         resize_keyboard=True

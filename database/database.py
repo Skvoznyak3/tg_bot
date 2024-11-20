@@ -16,11 +16,13 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     telegram_id = Column(Integer, unique=True, index=True)
-    timezone = Column(String, default="UTC")
-    currency = Column(String, default="USD")
+    timezone = Column(String, default="UTC")  # Часовой пояс
+    currency = Column(String, default="USD")  # Базовая валюта
+    notification_frequency = Column(Integer, default=60)  # Частота уведомлений (в минутах)
 
     favorites = relationship("Favorite", back_populates="user")
-    subscriptions = relationship("Subscription", back_populates="user")
+    subscriptions = relationship("Subscription", back_populates="user", lazy="joined")
+
 
 
 class Favorite(Base):

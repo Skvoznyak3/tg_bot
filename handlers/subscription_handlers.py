@@ -24,31 +24,6 @@ async def subscribe(message: Message):
                             "Пример: `BTC процент 5`")
 
 
-# Хендлер для команды /subscriptions
-@router.message(Command("subscriptions"))
-async def view_subscriptions(message: Message):
-    user_id = message.from_user.id
-    session = SessionLocal()
-
-    # Получаем список подписок пользователя
-    subscriptions = session.query(Subscription).filter_by(user_id=user_id).all()
-
-    if not subscriptions:
-        await message.answer("У вас нет активных подписок.")
-    else:
-        response = "Ваши активные подписки:\n"
-        for subscription in subscriptions:
-            if subscription.alert_type == 'percentage':
-                response += f"Актив: {subscription.ticker}, Уведомление при изменении на {subscription.alert_value}%\n"
-            elif subscription.alert_type == 'price_level':
-                response += f"Актив: {subscription.ticker}, Уведомление при достижении цены {subscription.alert_value}\n"
-        response += "\nЧтобы удалить подписку, введите /unsubscribe <тикер>."
-
-        await message.answer(response)
-
-    session.close()
-
-
 @router.message(Command("subscriptions"))
 async def subscriptions(message: Message):
     # Логика просмотра и управления подписками

@@ -1,8 +1,8 @@
 async def parse_notification_request(text: str):
     parts = text.split()
-    if len(parts) != 3:
+    if len(parts) != 4:
         return None, None, None
-    ticker, notification_type, threshold = parts
+    _, ticker, notification_type, threshold = parts
     if notification_type == "процент":
         try:
             threshold = float(threshold)

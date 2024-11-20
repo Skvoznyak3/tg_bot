@@ -1,9 +1,10 @@
 import requests
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from sqlalchemy.orm import joinedload
 
-from database.database import SessionLocal
+from database.database import SessionLocal, User, Subscription
 from keyboards import main_menu
 
 router = Router()
@@ -91,9 +92,117 @@ async def process_category_callback(callback_query: CallbackQuery):
 
 
 @router.message(lambda message: message.text == "Настройки")
-async def settings(message: Message):
-    await message.answer(
-        "Здесь вы можете изменить настройки, такие как часовой пояс, базовая валюта и частота уведомлений.")
+@router.message(Command("settings"))
+async def settings_command(message: Message):
+    """
+    Обработчик команды /settings. Показывает меню настроек.
+    """
+    settings_menu = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Изменить базовую валюту", callback_data="settings:currency")],
+        [InlineKeyboardButton(text="Изменить часовой пояс", callback_data="settings:timezone")],
+        [InlineKeyboardButton(text="Изменить частоту уведомлений", callback_data="settings:notifications")]
+    ])
+    await message.answer("Выберите параметр для изменения:", reply_markup=settings_menu)
+
+
+@router.callback_query(lambda c: c.data.startswith("settings:currency"))
+async def change_currency(callback_query: CallbackQuery):
+    """
+    Обработчик для изменения базовой валюты.
+    """
+    currencies = ["USD", "EUR", "RUB", "JPY"]  # Список поддерживаемых валют
+    currency_menu = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=currency, callback_data=f"set_currency:{currency}") for currency in currencies]
+    ])
+    await callback_query.message.answer("Выберите базовую валюту:", reply_markup=currency_menu)
+    await callback_query.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("set_currency:"))
+async def set_currency(callback_query: CallbackQuery):
+    """
+    Устанавливает базовую валюту для пользователя.
+    """
+    currency = callback_query.data.split(":")[1]
+    user_id = callback_query.from_user.id
+
+    # Обновление валюты в базе данных
+    user = db.query(User).filter(User.telegram_id == user_id).first()
+    if user:
+        user.currency = currency
+        db.commit()
+        await callback_query.message.answer(f"Базовая валюта изменена на {currency}.")
+    else:
+        await callback_query.message.answer("Пользователь не найден. Попробуйте снова.")
+
+    await callback_query.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("settings:timezone"))
+async def change_timezone(callback_query: CallbackQuery):
+    """
+    Обработчик для изменения часового пояса.
+    """
+    await callback_query.message.answer("Введите ваш часовой пояс (например, UTC+3):")
+    await callback_query.answer()
+
+
+@router.message(lambda message: message.text.startswith("UTC"))
+async def set_timezone(message: Message):
+    """
+    Устанавливает часовой пояс для пользователя.
+    """
+    timezone = message.text.strip()
+    user_id = message.from_user.id
+
+    # Обновление часового пояса в базе данных
+    user = db.query(User).filter(User.telegram_id == user_id).first()
+    if user:
+        user.timezone = timezone
+        db.commit()
+        await message.answer(f"Ваш часовой пояс изменен на {timezone}.")
+    else:
+        await message.answer("Пользователь не найден. Попробуйте снова.")
+
+
+@router.callback_query(lambda c: c.data.startswith("settings:notifications"))
+async def change_notifications(callback_query: CallbackQuery):
+    """
+    Обработчик для изменения частоты уведомлений.
+    """
+    notification_menu = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Каждый час", callback_data="set_notifications:60")],
+        [InlineKeyboardButton(text="Каждые 6 часов", callback_data="set_notifications:360")],
+        [InlineKeyboardButton(text="Каждые 12 часов", callback_data="set_notifications:720")],
+        [InlineKeyboardButton(text="Ежедневно", callback_data="set_notifications:1440")]
+    ])
+    await callback_query.message.answer("Выберите частоту уведомлений:", reply_markup=notification_menu)
+    await callback_query.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("set_notifications:"))
+async def set_notifications(callback_query: CallbackQuery):
+    """
+    Устанавливает частоту уведомлений для пользователя.
+    """
+    frequency = int(callback_query.data.split(":")[1])
+    user_id = callback_query.from_user.id
+
+    # Обновление частоты уведомлений в базе данных
+    user = db.query(User).filter(User.telegram_id == user_id).options(joinedload(User.subscriptions)).first()
+    subscriptions = db.query(Subscription).filter(Subscription.user_id == user_id).first()
+    if user:
+        if subscriptions:
+            subscriptions.period = frequency
+            db.commit()
+            await callback_query.message.answer(f"Частота уведомлений изменена на каждые {frequency // 60} часов.")
+        else:
+            # Логика на случай, если подписки отсутствуют
+            await callback_query.message.answer("У вас нет активных подписок.")
+    else:
+        await callback_query.message.answer("Пользователь не найден. Попробуйте снова.")
+
+    await callback_query.answer()
 
 
 @router.message(lambda message: message.text == "Помощь")
@@ -125,3 +234,4 @@ async def help_command(message: Message):
         "/settings — Настройки бота\n"
         "/subscriptions — Управление подписками\n"
     )
+
