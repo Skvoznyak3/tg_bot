@@ -167,6 +167,7 @@ async def set_notifications(callback_query: CallbackQuery):
 
 
 @router.message(lambda message: message.text == "Помощь")
+@router.message(Command("help"))
 async def help(message: Message):
     help_text = (
         "Команды:\n"
@@ -181,17 +182,3 @@ async def help(message: Message):
         "/subscriptions - Управление подписками\n"
     )
     await message.answer(help_text)
-
-
-@router.message(Command("help"))
-async def help_command(message: Message):
-    await message.reply(
-        "/start — Приветствие\n"
-        "/info [тикер] — Получение информации об активе\n"
-        "/chart [тикер] — График изменения цены\n"
-        "/subscribe [тикер] — Подписка на уведомления об изменении цены\n"
-        "/alert [тикер] — Настройка уведомлений по цене\n"
-        "/favorites — Управление избранными активами\n"
-        "/settings — Настройки бота\n"
-        "/subscriptions — Управление подписками\n"
-    )

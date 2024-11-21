@@ -5,9 +5,9 @@ from config import BASE_API_URL
 
 # Словарь URL-ов по типу актива
 URLS = {
-    "crypto": f"http://{BASE_API_URL}/current/crypto/",
-    "stock": f"http://{BASE_API_URL}/current/stock/",
-    "currency": f"http://{BASE_API_URL}/current/currency/"
+    "crypto": f"{BASE_API_URL}current/crypto/",
+    "stock": f"{BASE_API_URL}current/stock/",
+    "currency": f"{BASE_API_URL}current/currency/"
 }
 
 
